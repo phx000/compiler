@@ -1,181 +1,98 @@
-from errors import InvalidOperatorPlacementError
 from utils import Op
 
-type NestedPartList = list[int | Op | "NestedPartList"]
+type ExpressionParts = list[int | Op | "ExpressionParts"]
 
 
-def calc(parts: NestedPartList) -> int | None:
-    if not parts:
-        return None
+# todo add validation that errors when higher prio binary operator is applied to lower prio unary operator chain
+#   coming immediately after. e.g: "3 + !5" will error because "+" is higher prio than "!". The current code will
+#   pass "!" (Op.NOT) into Op.ADD.fn().
 
-    result = 0
-
-    while parts:
-        part = parts.pop(0)
-
-        # case when expression starts with sub-expression
+def calc(parts: ExpressionParts) -> int:
+    for i, part in enumerate(parts):
         if isinstance(part, list):
-            result = calc(part)
-            continue
+            parts[i] = calc(part)
 
-        # case when expression starts with a number
-        if isinstance(part, int):
-            result = part
-            continue
+    for i in range(len(parts) - 1):
+        p1, p2 = parts[i], parts[i + 1]
 
-        # case when expression starts with an operator
-        if not parts:
-            raise InvalidOperatorPlacementError("Expression cannot end in an operator")
+        if isinstance(p1, int) and isinstance(p2, int):
+            raise ValueError("Expressions cannot contain consecutive numbers")
 
-        next_part = parts.pop(0)
-        right = calc([next_part])
+    while len(parts) > 1:
+        max_prio = 0
+        op_idx = None  # index of the first operator with the highest priority in the expression
 
-        if right is None:
-            raise InvalidOperatorPlacementError("Expression cannot end in an operator")
+        for i, part in enumerate(parts):
+            if isinstance(part, Op) and part.prio > max_prio:
+                max_prio = part.prio
+                op_idx = i
 
-        result = part.fn(result, right)
+        op = parts[op_idx]
 
-    return result
+        if op.is_unary:
+            op_chain = [op]  # list of unary operators preceding a number
+            val = None
+            offset = 1
 
-# tparts = [
-#     Op.SUB,
-#     [
-#         8,
-#         Op.ADD,
-#         4
-#     ],
-#     Op.SUB,
-#     [
-#         2,
-#         Op.ADD,
+            while op_idx + offset < len(parts):
+                part = parts[op_idx + offset]
+
+                if isinstance(part, int):
+                    val = part
+                    break
+
+                if not part.is_unary:
+                    raise ValueError("A binary operator cannot be declared after a unary operator")
+
+                op_chain.append(part)
+                offset += 1
+
+            if val is None:
+                raise ValueError("Expressions cannot end in an operator")
+
+            for unary_op in reversed(op_chain):
+                val = unary_op.fn(val)
+
+            parts = parts[:op_idx] + [val] + parts[op_idx + len(op_chain) + 1:]
+
+        else:
+            if op_idx == 0:
+                raise ValueError(f"Expression cannot start with operator '{op.symbol}'")
+
+            if op_idx == len(parts) - 1:
+                raise ValueError("Expression cannot end in an operator")
+
+            left = parts[op_idx - 1]
+            right = parts[op_idx + 1]
+            result = op.fn(left, right)
+            parts = parts[:op_idx - 1] + [result] + parts[op_idx + 2:]
+
+    return parts[0]
+
+# print(
+#     calc(
 #         [
-#             1,
-#             Op.SUB,
-#             4
-#         ],
-#     ],
-# ]
-# print(calc(tparts))
-
-# def calc_parts_p(parts):
-#     result = None
-#
-#     if not parts:
-#         return None
-#
-#     while parts:
-#         part = parts.pop(0)
-#
-#         if isinstance(part, list):
-#             return calc_parts(part)
-#
-#         t, val = part
-#
-#         if t is Type.VAR:
-#             if not parts:
-#                 return val
-#
-#             part2 = parts.pop(0)
-#
-#             if isinstance(part2, list):
-#                 raise ValueError("A number must be separated from the next construct with an operator")
-#
-#             t2, op = part2
-#
-#             if t2 is Type.VAR:
-#                 raise ValueError("A number must be separated from the next construct with an operator")
-#
-#             right = calc_parts(parts)
-#
-#             if right is None:
-#                 raise ValueError("Expression cannot end in an operator")
-#
-#             if result is None:
-#                 result = val
-#
-#             result = op.run(result, right)
-#
-#         if t is Type.OP:
-#             if val not in (Op.ADD, Op.SUB):
-#                 raise ValueError(f"Expression cannot start with operator '{t.value}'")
-#
-#             if not parts:
-#                 raise ValueError("Expression cannot end in an operator")
-#
-#             part2 = parts.pop(0)
-#
-#             if isinstance(part2, tuple) and part2[0] is Type.OP:
-#                 raise ValueError("Two consecutive operators are not allowed")
-#
-#             result = val.run(0, part2[1])
-
-
-# if val in (Op.ADD, Op.SUB):
-#     left = 0 if result is None else result
-# elif result is None:
-#     raise ValueError(f"Expression cannot start with operator '{t.value}'")
-# else:
-#     left = result
-#
-# right = calc_parts(parts)
-#
-# if right is None:
-#     raise ValueError("Expression cannot end in an operator")
-#
-# result = val.run(left, right)
-
-# return result
-
-# else:
-#     if result is None:
-#         raise ValueError(f"Expression cannot start with operator '{t.value}'")
-#
-#     right = calc_parts(parts)
-#
-#     if right is None:
-#         raise ValueError(f"Expression cannot end in an operator")
-#
-#     result = val.run(result, right)
-
-
-# PARSER
-
-# def calc(s, parts=None):
-#     cur = 0
-#
-#     if parts is None:
-#         parts = []
-#
-#     while cur < len(s):
-#         if s[cur] == " ":
-#             cur += 1
-#             continue
-#
-#         num = ""
-#
-#         while s[cur].isnumeric():
-#             num += s[cur]
-#             cur += 1
-#
-#         if num:
-#             parts += (Type.VAR, int(num))
-#             continue
-#
-#         elif s[cur] in [o.value for o in Op]:
-#             parts += (Type.OP, Op(s[cur]))
-#             cur += 1
-#             continue
-#
-#         elif s[cur] == "(":
-#             parts += calc(s[cur + 1:], parts)
-#
-#         elif s[cur] == ")":
-#             return parts
-#
-#         else:
-#             raise ValueError(f"Invalid character: {s[cur]}")
-
-# for part in parts:
-
-
-# parts=[(Type.VAR, 4), (Type.OP, Op.ADD), [(Type.VAR,2), (Type.OP, Op.SUB), (Type.VAR,8)]]
+#             3,
+#             Op.ADD,
+#             5,
+#             Op.MUL,
+#             [
+#                 5,
+#                 Op.ADD,
+#                 [
+#                     Op.NOT,
+#                     Op.NEG,
+#                     Op.NOT,
+#                     7,
+#                 ],
+#             ],
+#             Op.ADD,
+#             5,
+#             Op.POW,
+#             2
+#         ]
+#     )
+# )
+# print(
+#     3 + 5 * (5 + (not -(not 7))) + 5 ** 2
+# )
