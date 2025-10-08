@@ -3,10 +3,6 @@ from utils import Op
 type ExpressionParts = list[int | Op | "ExpressionParts"]
 
 
-# todo add validation that errors when higher prio binary operator is applied to lower prio unary operator chain
-#   coming immediately after. e.g: "3 + !5" will error because "+" is higher prio than "!". The current code will
-#   pass "!" (Op.NOT) into Op.ADD.fn().
-
 def calc(parts: ExpressionParts) -> int:
     for i, part in enumerate(parts):
         if isinstance(part, list):
@@ -64,6 +60,10 @@ def calc(parts: ExpressionParts) -> int:
 
             left = parts[op_idx - 1]
             right = parts[op_idx + 1]
+
+            if isinstance(right, Op):
+                raise ValueError(f"Operator '{op.symbol}' cannot be used with '{right.symbol}'")
+
             result = op.fn(left, right)
             parts = parts[:op_idx - 1] + [result] + parts[op_idx + 2:]
 
