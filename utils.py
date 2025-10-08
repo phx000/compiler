@@ -1,5 +1,5 @@
 import operator
-from collections import namedtuple, defaultdict
+from collections import namedtuple, defaultdict, Counter
 from enum import Enum
 from functools import cache
 
@@ -34,6 +34,27 @@ class Op(Enum):
         self.symbol = symbol
         self.prio = prio
         self.fn = fn
+
+    def __repr__(self):
+        return f"Op({self.name})"
+
+    @classmethod
+    def from_symbol(cls, symbol):
+        # to reference members with a duplicate symbol (like SUB and NEG), use from_operator_fn
+        return cls.unique_symbol_to_member_map()[symbol]
+
+    @classmethod
+    @cache
+    def from_name(cls, name):
+        return getattr(cls, name)
+
+    @classmethod
+    @cache
+    def unique_symbol_to_member_map(cls):
+        # duplicate symbols and their corresponding members are removed from the result
+        symbols = [op.symbol for op in cls]
+        counter = Counter(symbols)
+        return {op.symbol: op for op in cls if counter[op.symbol] == 1}
 
     @classmethod
     def unary(cls):

@@ -1,9 +1,9 @@
 from utils import Op
 
-type ExpressionParts = list[int | Op | "ExpressionParts"]
+type Expression = list[int | Op | "Expression"]
 
 
-def calc(parts: ExpressionParts) -> int:
+def calc(parts: Expression) -> int:
     for i, part in enumerate(parts):
         if isinstance(part, list):
             parts[i] = calc(part)
@@ -69,30 +69,81 @@ def calc(parts: ExpressionParts) -> int:
 
     return parts[0]
 
-# print(
-#     calc(
-#         [
-#             3,
-#             Op.ADD,
-#             5,
-#             Op.MUL,
-#             [
-#                 5,
-#                 Op.ADD,
-#                 [
-#                     Op.NOT,
-#                     Op.NEG,
-#                     Op.NOT,
-#                     7,
-#                 ],
-#             ],
-#             Op.ADD,
-#             5,
-#             Op.POW,
-#             2
-#         ]
-#     )
-# )
-# print(
-#     3 + 5 * (5 + (not -(not 7))) + 5 ** 2
-# )
+
+# s=" 1 + (2 - (5 + 4)) + 1"
+
+"""
+1
+1, +
+1, +, []
+1, +, [2]
+1, +, [2, -]
+1, +, [2, -, []]
+"""
+
+
+def get_active_expression(parts: Expression, depth: int) -> Expression:
+    expr = parts
+
+    for d in range(depth):
+        expr = expr[-1]
+
+    return expr
+
+
+def parse_expression(s: str) -> Expression:
+    parts = []
+    depth = 0
+    i = 0
+
+    while i < len(s):
+        if s[i] == "(":
+            expr = get_active_expression(parts, depth)
+            expr.append([])
+            depth += 1
+            i += 1
+
+        elif s[i] == ")":
+            if depth == 0:
+                raise ValueError("Extra closing parenthesis")
+
+            depth -= 1
+            i += 1
+
+        elif s[i] == "-":
+            expr = get_active_expression(parts, depth)
+
+            if expr and isinstance(expr[-1], int):
+                expr.append(Op.SUB)
+            else:
+                expr.append(Op.NEG)
+
+            i += 1
+
+        elif (op := Op.unique_symbol_to_member_map().get(s[i])) is not None:
+            expr = get_active_expression(parts, depth)
+            expr.append(op)
+            i += 1
+
+        elif s[i].isnumeric():
+            num = s[i]
+            i += 1
+
+            while i < len(s) and s[i].isnumeric():
+                num += s[i]
+                i += 1
+
+            expr = get_active_expression(parts, depth)
+            expr.append(int(num))
+
+        elif s[i]==" ":
+            i+=1
+
+        else:
+            raise ValueError(f"Invalid character '{s[i]}'")
+
+    return parts
+
+
+# e = "1+2--(12-!(1-2))"
+# print(parse_expression(e))
