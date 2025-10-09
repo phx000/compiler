@@ -1,6 +1,7 @@
 import operator
 import string
-from collections import namedtuple, defaultdict, Counter
+from collections import defaultdict, Counter
+from dataclasses import dataclass
 from enum import Enum
 from functools import cache
 from typing import NamedTuple
@@ -77,24 +78,41 @@ class Op(Enum):
         return self in self.__class__.unary()
 
 
-# todo refactor the instruction declarations
-class InstrType(Enum):
-    DECLARE_VAR="declare_var"
-    SET_VAR = "set_var"
-    PRINT = "print"
-    COND = "cond"
-    LOOP = "loop"
-
-
-
-Instr = namedtuple("Instr", ["type", "value"])
-
-
-
-DeclareVarInstr = namedtuple("DeclareVarInstr", ["name", "expr"])
-SetVarInstr = namedtuple("SetVarInstr", ["name", "expr"])
-CondInstr = namedtuple("CondInstr", ["cond", "instr", "instr_else"])
-LoopInstr = namedtuple("LoopInstr", ["cond", "instr"])
-
 VAR_NAME_START_CHARS = string.ascii_letters + "_"
 VAR_NAME_CHARS = VAR_NAME_START_CHARS + string.digits
+
+
+@dataclass
+class Instr:
+    # Base class. Should not be instantiated
+    pass
+
+
+@dataclass
+class DeclareIntInstr(Instr):
+    name: str
+    expr: str
+
+
+@dataclass
+class SetVarInstr(Instr):
+    name: str
+    expr: str
+
+
+@dataclass
+class PrintInstr(Instr):
+    expr: str
+
+
+@dataclass
+class CondInstr(Instr):
+    cond: str
+    instrs: list[Instr]
+    instrs_else: list[Instr]
+
+
+@dataclass
+class LoopInstr(NamedTuple):
+    cond: str
+    instrs: list[Instr]

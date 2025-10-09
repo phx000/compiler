@@ -1,7 +1,7 @@
 from typing import cast
 
-from utils import Op, Instr, InstrType, VAR_NAME_CHARS, VAR_NAME_START_CHARS, SetVarInstr, LoopInstr, \
-    DeclareVarInstr, CondInstr
+from utils import Op, Instr, VAR_NAME_CHARS, VAR_NAME_START_CHARS, SetVarInstr, LoopInstr, \
+    CondInstr, DeclareIntInstr, PrintInstr
 
 type Expression = list[int | Op | "Expression"]
 type UnresolvedExpression = list[int | Op | str | "UnresolvedExpression"]
@@ -192,55 +192,28 @@ def resolve_instructions(instructions: list[Instr], var_stack: VarStack | None =
     var_stack.append({})
 
     for instr in instructions:
-        if instr.type is InstrType.DECLARE_VAR:
-            if instr.value.name in var_stack[-1]:
-                raise ValueError(f"Variable '{instr.value.name}' is already defined locally")
+        if isinstance(instr, DeclareIntInstr):
+            if instr.name in var_stack[-1]:
+                raise ValueError(f"Variable '{instr.name}' is already defined locally")
 
-            res = resolve_expression(instr.value.expr, var_stack)
-            var_stack[-1][instr.value.name] = res
+            res = resolve_expression(instr.expr, var_stack)
+            var_stack[-1][instr.name] = res
 
-        elif instr.type is InstrType.SET_VAR:
-            res = resolve_expression(instr.value.expr, var_stack)
-            set_var(instr.value.name, res, var_stack)
+        elif isinstance(instr, SetVarInstr):
+            res = resolve_expression(instr.expr, var_stack)
+            set_var(instr.name, res, var_stack)
 
-        elif instr.type is InstrType.PRINT:
-            res = resolve_expression(instr.value, var_stack)
+        elif isinstance(instr, PrintInstr):
+            res = resolve_expression(instr.expr, var_stack)
             print(res)
 
-        elif instr.type is InstrType.COND:
-            res = resolve_expression(instr.value.cond, var_stack)
-            cont_instr = instr.value.instr if res else instr.value.instr_else
+        elif isinstance(instr, CondInstr):
+            res = resolve_expression(instr.cond, var_stack)
+            cont_instr = instr.instrs if res else instr.instrs_else
             resolve_instructions(cont_instr, var_stack)
 
-        elif instr.type is InstrType.LOOP:
-            while resolve_expression(instr.value.cond, var_stack):
-                resolve_instructions(instr.value.instr, var_stack)
+        elif isinstance(instr, LoopInstr):
+            while resolve_expression(instr.cond, var_stack):
+                resolve_instructions(instr.instrs, var_stack)
 
     var_stack.pop()
-
-
-# inst = [
-#     Instr(InstrType.DECLARE_VAR, DeclareVarInstr("a", "1")),
-#     Instr(InstrType.DECLARE_VAR, DeclareVarInstr("b", "6")),
-#
-#     Instr(InstrType.COND, CondInstr(
-#         "a>b",
-#         [Instr(InstrType.PRINT, "a")],
-#         [Instr(InstrType.PRINT, "b")],
-#     )),
-#
-#     Instr(InstrType.LOOP, LoopInstr(
-#         "a<5",
-#         [
-#             Instr(InstrType.DECLARE_VAR, DeclareVarInstr("b", "1")),
-#             Instr(InstrType.PRINT, "a"),
-#             Instr(InstrType.SET_VAR, SetVarInstr("a", "a+1")),
-#             Instr(InstrType.PRINT, "b"),
-#         ]
-#     )),
-#
-#             Instr(InstrType.PRINT, "b"),
-#
-# ]
-#
-# resolve_instructions(inst)
