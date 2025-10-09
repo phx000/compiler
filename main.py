@@ -1,12 +1,17 @@
-from utils import Op
+from typing import cast
+
+from utils import Op, Instr, InstrType, VAR_NAME_CHARS, VAR_NAME_START_CHARS, SetVarInstr, LoopInstr, \
+    DeclareVarInstr, CondInstr
 
 type Expression = list[int | Op | "Expression"]
+type UnresolvedExpression = list[int | Op | str | "UnresolvedExpression"]
+type VarStack = list[dict[str, int]]
 
 
-def calc(parts: Expression) -> int:
+def calc_expression(parts: Expression) -> int:
     for i, part in enumerate(parts):
         if isinstance(part, list):
-            parts[i] = calc(part)
+            parts[i] = calc_expression(part)
 
     for i in range(len(parts) - 1):
         p1, p2 = parts[i], parts[i + 1]
@@ -70,19 +75,41 @@ def calc(parts: Expression) -> int:
     return parts[0]
 
 
-# s=" 1 + (2 - (5 + 4)) + 1"
+def get_var(name: str, var_stack: VarStack) -> int:
+    for dct in reversed(var_stack):
+        if (val := dct.get(name)) is not None:
+            return val
 
-"""
-1
-1, +
-1, +, []
-1, +, [2]
-1, +, [2, -]
-1, +, [2, -, []]
-"""
+    raise KeyError(f"Variable '{name}' not defined")
 
 
-def get_active_expression(parts: Expression, depth: int) -> Expression:
+def set_var(name: str, val: int, var_stack: VarStack) -> None:
+    for dct in reversed(var_stack):
+        if name in dct:
+            dct[name] = val
+            return
+
+    raise KeyError(f"Variable '{name}' not defined")
+
+
+def resolve_expression_vars(parts: UnresolvedExpression, var_stack: VarStack) -> Expression:
+    for i, part in enumerate(parts):
+        if isinstance(part, list):
+            parts[i] = resolve_expression_vars(part, var_stack)
+
+        elif isinstance(part, str):
+            parts[i] = get_var(part, var_stack)
+
+    return cast(Expression, parts)
+
+
+def resolve_expression(expr: str, var_stack: VarStack) -> int:
+    unres_expr = parse_expression(expr)
+    expr = resolve_expression_vars(unres_expr, var_stack)
+    return calc_expression(expr)
+
+
+def get_active_expression(parts: UnresolvedExpression, depth: int) -> UnresolvedExpression:
     expr = parts
 
     for d in range(depth):
@@ -91,7 +118,7 @@ def get_active_expression(parts: Expression, depth: int) -> Expression:
     return expr
 
 
-def parse_expression(s: str) -> Expression:
+def parse_expression(s: str) -> UnresolvedExpression:
     parts = []
     depth = 0
     i = 0
@@ -125,6 +152,18 @@ def parse_expression(s: str) -> Expression:
             expr.append(op)
             i += 1
 
+        # todo make variable parser respect reserved keywords
+        elif s[i] in VAR_NAME_START_CHARS:
+            name = s[i]
+            i += 1
+
+            while i < len(s) and s[i] in VAR_NAME_CHARS:
+                name += s[i]
+                i += 1
+
+            expr = get_active_expression(parts, depth)
+            expr.append(name)
+
         elif s[i].isnumeric():
             num = s[i]
             i += 1
@@ -133,11 +172,14 @@ def parse_expression(s: str) -> Expression:
                 num += s[i]
                 i += 1
 
+            if i < len(s) and s[i] in VAR_NAME_START_CHARS:
+                raise ValueError("Variable names cannot start with a number")
+
             expr = get_active_expression(parts, depth)
             expr.append(int(num))
 
-        elif s[i]==" ":
-            i+=1
+        elif s[i] == " ":
+            i += 1
 
         else:
             raise ValueError(f"Invalid character '{s[i]}'")
@@ -145,5 +187,60 @@ def parse_expression(s: str) -> Expression:
     return parts
 
 
-# e = "1+2--(12-!(1-2))"
-# print(parse_expression(e))
+def resolve_instructions(instructions: list[Instr], var_stack: VarStack | None = None) -> None:
+    var_stack = var_stack or []
+    var_stack.append({})
+
+    for instr in instructions:
+        if instr.type is InstrType.DECLARE_VAR:
+            if instr.value.name in var_stack[-1]:
+                raise ValueError(f"Variable '{instr.value.name}' is already defined locally")
+
+            res = resolve_expression(instr.value.expr, var_stack)
+            var_stack[-1][instr.value.name] = res
+
+        elif instr.type is InstrType.SET_VAR:
+            res = resolve_expression(instr.value.expr, var_stack)
+            set_var(instr.value.name, res, var_stack)
+
+        elif instr.type is InstrType.PRINT:
+            res = resolve_expression(instr.value, var_stack)
+            print(res)
+
+        elif instr.type is InstrType.COND:
+            res = resolve_expression(instr.value.cond, var_stack)
+            cont_instr = instr.value.instr if res else instr.value.instr_else
+            resolve_instructions(cont_instr, var_stack)
+
+        elif instr.type is InstrType.LOOP:
+            while resolve_expression(instr.value.cond, var_stack):
+                resolve_instructions(instr.value.instr, var_stack)
+
+    var_stack.pop()
+
+
+# inst = [
+#     Instr(InstrType.DECLARE_VAR, DeclareVarInstr("a", "1")),
+#     Instr(InstrType.DECLARE_VAR, DeclareVarInstr("b", "6")),
+#
+#     Instr(InstrType.COND, CondInstr(
+#         "a>b",
+#         [Instr(InstrType.PRINT, "a")],
+#         [Instr(InstrType.PRINT, "b")],
+#     )),
+#
+#     Instr(InstrType.LOOP, LoopInstr(
+#         "a<5",
+#         [
+#             Instr(InstrType.DECLARE_VAR, DeclareVarInstr("b", "1")),
+#             Instr(InstrType.PRINT, "a"),
+#             Instr(InstrType.SET_VAR, SetVarInstr("a", "a+1")),
+#             Instr(InstrType.PRINT, "b"),
+#         ]
+#     )),
+#
+#             Instr(InstrType.PRINT, "b"),
+#
+# ]
+#
+# resolve_instructions(inst)
