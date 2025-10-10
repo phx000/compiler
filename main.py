@@ -1,12 +1,11 @@
 from typing import cast
 
-from utils import Op, Instr, VAR_NAME_CHARS, VAR_NAME_START_CHARS, SetVarInstr, LoopInstr, \
-    CondInstr, DeclareIntInstr, PrintInstr
+from parsers import parse_expression
+from utils import Op, Instr, SetVarInstr, LoopInstr, CondInstr, DeclareIntInstr, PrintInstr, Expression, VarStack, \
+    UnresolvedExpression
 
-type Expression = list[int | Op | "Expression"]
-type UnresolvedExpression = list[int | Op | str | "UnresolvedExpression"]
-type VarStack = list[dict[str, int]]
 
+# todo add a typechecker + pre-commit to the project
 
 def calc_expression(parts: Expression) -> int:
     for i, part in enumerate(parts):
@@ -109,84 +108,6 @@ def resolve_expression(expr: str, var_stack: VarStack) -> int:
     return calc_expression(expr)
 
 
-def get_active_expression(parts: UnresolvedExpression, depth: int) -> UnresolvedExpression:
-    expr = parts
-
-    for d in range(depth):
-        expr = expr[-1]
-
-    return expr
-
-
-def parse_expression(s: str) -> UnresolvedExpression:
-    parts = []
-    depth = 0
-    i = 0
-
-    while i < len(s):
-        if s[i] == "(":
-            expr = get_active_expression(parts, depth)
-            expr.append([])
-            depth += 1
-            i += 1
-
-        elif s[i] == ")":
-            if depth == 0:
-                raise ValueError("Extra closing parenthesis")
-
-            depth -= 1
-            i += 1
-
-        elif s[i] == "-":
-            expr = get_active_expression(parts, depth)
-
-            if expr and isinstance(expr[-1], int):
-                expr.append(Op.SUB)
-            else:
-                expr.append(Op.NEG)
-
-            i += 1
-
-        elif (op := Op.unique_symbol_to_member_map().get(s[i])) is not None:
-            expr = get_active_expression(parts, depth)
-            expr.append(op)
-            i += 1
-
-        # todo make variable parser respect reserved keywords
-        elif s[i] in VAR_NAME_START_CHARS:
-            name = s[i]
-            i += 1
-
-            while i < len(s) and s[i] in VAR_NAME_CHARS:
-                name += s[i]
-                i += 1
-
-            expr = get_active_expression(parts, depth)
-            expr.append(name)
-
-        elif s[i].isnumeric():
-            num = s[i]
-            i += 1
-
-            while i < len(s) and s[i].isnumeric():
-                num += s[i]
-                i += 1
-
-            if i < len(s) and s[i] in VAR_NAME_START_CHARS:
-                raise ValueError("Variable names cannot start with a number")
-
-            expr = get_active_expression(parts, depth)
-            expr.append(int(num))
-
-        elif s[i] == " ":
-            i += 1
-
-        else:
-            raise ValueError(f"Invalid character '{s[i]}'")
-
-    return parts
-
-
 def resolve_instructions(instructions: list[Instr], var_stack: VarStack | None = None) -> None:
     var_stack = var_stack or []
     var_stack.append({})
@@ -212,8 +133,17 @@ def resolve_instructions(instructions: list[Instr], var_stack: VarStack | None =
             cont_instr = instr.instrs if res else instr.instrs_else
             resolve_instructions(cont_instr, var_stack)
 
+        # todo implement break and continue in loops
         elif isinstance(instr, LoopInstr):
             while resolve_expression(instr.cond, var_stack):
                 resolve_instructions(instr.instrs, var_stack)
 
+        # todo add an exit instr
+
     var_stack.pop()
+
+# # Test
+# resolve_instructions([
+#     DeclareIntInstr("a", "5"),
+#     PrintInstr("a")
+# ])

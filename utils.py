@@ -6,13 +6,16 @@ from enum import Enum
 from functools import cache
 from typing import NamedTuple
 
+type Expression = list[int | Op | "Expression"]
+type UnresolvedExpression = list[int | Op | str | "UnresolvedExpression"]
+type VarStack = list[dict[str, int]]
+
 
 class Type(Enum):
     VAR = "var"
     OP = "op"
 
 
-# todo test this file
 class Op(Enum):
     # boolean
     OR = ("|", 0, operator.or_)
@@ -78,14 +81,15 @@ class Op(Enum):
         return self in self.__class__.unary()
 
 
-VAR_NAME_START_CHARS = string.ascii_letters + "_"
-VAR_NAME_CHARS = VAR_NAME_START_CHARS + string.digits
+VAR_NAME_START_CHARS = set(string.ascii_letters + "_")  # also includes all keyword chars
+VAR_NAME_CHARS = VAR_NAME_START_CHARS | set(string.digits)
 
 
 @dataclass
 class Instr:
-    # Base class. Should not be instantiated
-    pass
+    def __post_init__(self):
+        if type(self) is Instr:
+            raise TypeError(f"'{self.__class__.__name__}' is abstract and cannot be instantiated")
 
 
 @dataclass
@@ -113,6 +117,19 @@ class CondInstr(Instr):
 
 
 @dataclass
-class LoopInstr(NamedTuple):
+class LoopInstr(Instr):
     cond: str
     instrs: list[Instr]
+
+
+class Kws(Enum):  # keywords
+    INT = "int"
+    PRINT = "print"
+    IF = "if"
+    ELSE = "else"
+    WHILE = "while"
+
+    @classmethod
+    @cache
+    def values(cls):
+        return {kw.value for kw in Kws}
