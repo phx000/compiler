@@ -201,17 +201,3 @@ def parse_instructions(s):
 
     return instrs
 
-# # TEST
-# txt="""
-# int a = 10;
-# int b=5;
-#
-# if(a>b+6){
-#   print a;
-# }
-#
-# else {print b+1;}
-#
-# while(b>0){b=b-1;}
-# """
-# print(parse_instructions(txt))
