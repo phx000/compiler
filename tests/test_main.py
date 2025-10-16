@@ -1,3 +1,5 @@
+# old tests, useless for the current implementation.
+
 # import pytest
 #
 # from errors import InvalidOperatorPlacementError, InvalidExpressionError
