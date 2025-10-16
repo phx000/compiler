@@ -65,8 +65,8 @@ def calc_expression(parts: Expression) -> int:
             left = parts[op_idx - 1]
             right = parts[op_idx + 1]
 
-            if isinstance(right, Op):
-                raise ValueError(f"Operator '{op.symbol}' cannot be used with '{right.symbol}'")
+            if isinstance(left, Op) or isinstance(right, Op):
+                raise ValueError(f"'{left} {op.symbol} {right}' is invalid")
 
             result = op.fn(left, right)
             parts = parts[:op_idx - 1] + [result] + parts[op_idx + 2:]
